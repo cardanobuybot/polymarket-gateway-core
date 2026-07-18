@@ -8,12 +8,15 @@
     "node": ">=20"
   },
   "bin": {
-    "polymarket-gateway": "dist/server.js"
+    "polymarket-gateway": "dist/server.js",
+    "polymarket-gateway-http": "dist/http.js"
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "node --loader ts-node/esm src/server.ts",
+    "start": "node dist/http.js",
+    "start:stdio": "node dist/server.js",
+    "start:http": "node dist/http.js",
+    "dev": "node --loader ts-node/esm src/http.ts",
     "test": "node --loader ts-node/esm src/test-runner.ts"
   },
   "dependencies": {
