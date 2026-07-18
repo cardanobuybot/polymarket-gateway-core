@@ -1,0 +1,80 @@
+{
+  "$schema": "https://onchainos.okx.ai/schemas/asp-manifest.v1.json",
+  "id": "polymarket-gateway-core",
+  "name": "Polymarket Ultra Gateway",
+  "version": "0.1.0",
+  "description": "MCP-совместимый Skill Provider для Polymarket: автопровижининг сессии, подготовка ставочного пейлоада с корректной подписью для CLOB v2 Deposit Wallet архитектуры, авто-своп ликвидности через OKX DEX, оплата за вызов по x402.",
+  "protocol": "mcp",
+  "transport": "stdio",
+  "author": "cardanobuybot",
+  "license": "MIT",
+  "homepage": "https://github.com/cardanobuybot/polymarket-gateway-core",
+  "compliance_notice": "Использование этого шлюза не подменяет KYC и гео-фильтры Polymarket. Оператор сам несёт ответственность за соблюдение TOS платформы и локального законодательства (в том числе CFTC/AML), включая случай, когда действия совершаются автономным ИИ-агентом с его ключами.",
+  "tools": [
+    {
+      "name": "pm_auto_setup",
+      "title": "Автоматический сетап сессии",
+      "description": "Провизионирует сессионный конфиг и creds без ручного копипаста: генерирует sessionId, читает env-vars, возвращает состояние окружения и список поддерживаемых архитектур кошельков.",
+      "pricing": { "type": "free" },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "walletAddress": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "EOA-адрес signer'а (не сам deposit-wallet)."
+          },
+          "walletKind": {
+            "type": "string",
+            "enum": ["eoa", "poly_proxy", "poly_gnosis_safe", "magic_deposit"],
+            "description": "Тип кошелька. Для актуальной CLOB v2 архитектуры — magic_deposit."
+          },
+          "chainId": {
+            "type": "integer",
+            "enum": [137],
+            "default": 137
+          }
+        },
+        "required": ["walletAddress", "walletKind"]
+      }
+    },
+    {
+      "name": "pm_place_bet",
+      "title": "Подготовить ставочный пейлоад",
+      "description": "Собирает пейлоад ордера Polymarket CLOB v2 с корректным signatureType под конкретную архитектуру кошелька. Для magic_deposit — signatureType=3 (EIP-1271) и makerMode=true, как требует новая архитектура аккаунтов. Опциональный auto_swap конвертирует USDC→нужный ставочный ассет через OKX DEX, если баланса не хватает. Оплата: 0.10 USDT за вызов по x402.",
+      "pricing": {
+        "type": "x402",
+        "amount": "0.10",
+        "asset": "USDT",
+        "network": "polygon"
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": { "type": "string", "minLength": 8 },
+          "marketId": { "type": "string", "minLength": 1 },
+          "outcomeId": { "type": "string", "minLength": 1 },
+          "side": { "type": "string", "enum": ["BUY", "SELL"] },
+          "price": {
+            "type": "string",
+            "pattern": "^0(\\.\\d{1,4})?$|^1(\\.0{1,4})?$",
+            "description": "Цена доли исхода в диапазоне [0,1]."
+          },
+          "size": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d{1,6})?$",
+            "description": "Размер в единицах ставочного ассета (обычно USDC)."
+          },
+          "auto_swap": {
+            "type": "boolean",
+            "default": false,
+            "description": "Если true и на депозитном кошельке нет ставочного ассета — сначала свопнуть через OKX DEX."
+          }
+        },
+        "required": ["sessionId", "marketId", "outcomeId", "side", "price", "size"]
+      }
+    }
+  ]
+}
