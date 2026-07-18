@@ -55,7 +55,12 @@ async function main() {
 
   const http = createServer(async (req, res) => {
     try {
-      const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+      // Railway (и любой TLS-терминатор) передаёт scheme в x-forwarded-proto.
+      const fwdProto = (req.headers['x-forwarded-proto'] ?? '').toString().split(',')[0]?.trim();
+      const proto = fwdProto || 'http';
+      const host = req.headers.host ?? 'localhost';
+      const origin = `${proto}://${host}`;
+      const url = new URL(req.url ?? '/', origin);
 
       if (req.method === 'GET' && url.pathname === '/health') {
         return json(res, 200, { status: 'ok', service: 'polymarket-gateway-core' });
@@ -71,7 +76,7 @@ async function main() {
               asset: charge.asset,
               amount: charge.amount,
               payTo: charge.payTo,
-              endpoint: `${url.origin}/mcp`,
+              endpoint: `${origin}/mcp`,
               description: '0.10 USDT per pm_place_bet call (Polymarket CLOB v2 payload)',
             },
           ],
