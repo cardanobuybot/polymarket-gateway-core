@@ -96,12 +96,6 @@ function isPaidCall(body: unknown): boolean {
 }
 
 async function main() {
-  const { server } = buildServer();
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
-  await server.connect(transport as never);
-
   const charge = buildChargeRule(process.env);
   const amountAtomic = toAtomic(charge.amount, X402_DECIMALS);
   const description = `${charge.amount} ${charge.asset} per pm_place_bet call (Polymarket CLOB v2 payload)`;
@@ -190,8 +184,16 @@ async function main() {
           }
         }
 
+        // Свежий transport + server на КАЖДЫЙ запрос — stateless MCP по спеке
+        // (переиспользование одного transport'а даёт "hasHandledRequest" throw).
+        const { server: perReqServer } = buildServer(process.env);
+        const perReqTransport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
+        } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
+        await perReqServer.connect(perReqTransport as never);
         try {
-          await transport.handleRequest(req, res, bodyForTransport);
+          await perReqTransport.handleRequest(req, res, bodyForTransport);
         } catch (err) {
           if (!res.headersSent) {
             return json(res, 400, {
@@ -199,6 +201,9 @@ async function main() {
               raw: raw.slice(0, 200),
             });
           }
+        } finally {
+          void perReqTransport.close?.().catch(() => {});
+          void perReqServer.close?.().catch(() => {});
         }
         return;
       }
